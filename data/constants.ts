@@ -1,77 +1,114 @@
 
-import { DefectTypeInfo, SeverityInfo } from '../types';
-import { colors } from '../styles/commonStyles';
+import { DefectTypeInfo, SeverityInfo, DefectType, DefectSeverity, DbDefectType, DbDefectPriority } from '@/types';
 
 export const DEFECT_TYPES: DefectTypeInfo[] = [
   {
     id: 'pothole',
-    label: 'Nid-de-poule',
-    icon: '🕳️',
-    color: colors.danger,
+    label: 'Pothole',
+    icon: 'exclamationmark.circle.fill',
+    color: '#FF6B6B',
+    dbType: 'hole',
   },
   {
     id: 'crack',
-    label: 'Fissure',
-    icon: '⚡',
-    color: colors.warning,
+    label: 'Crack',
+    icon: 'bolt.fill',
+    color: '#4ECDC4',
+    dbType: 'crack',
   },
   {
     id: 'surface_damage',
-    label: 'Dégradation de surface',
-    icon: '🔨',
-    color: colors.textSecondary,
+    label: 'Surface Damage',
+    icon: 'square.dashed',
+    color: '#45B7D1',
+    dbType: 'erosion',
   },
   {
     id: 'edge_damage',
-    label: 'Dégradation de bordure',
-    icon: '📐',
-    color: colors.accent,
+    label: 'Edge Damage',
+    icon: 'rectangle.split.2x1',
+    color: '#96CEB4',
+    dbType: 'other',
   },
   {
     id: 'drainage_issue',
-    label: 'Problème de drainage',
-    icon: '💧',
-    color: colors.primary,
+    label: 'Drainage Issue',
+    icon: 'drop.fill',
+    color: '#FFEAA7',
+    dbType: 'other',
   },
   {
     id: 'other',
-    label: 'Autre',
-    icon: '❓',
-    color: colors.textSecondary,
+    label: 'Other',
+    icon: 'questionmark.circle.fill',
+    color: '#DDA0DD',
+    dbType: 'other',
   },
 ];
 
 export const SEVERITY_LEVELS: SeverityInfo[] = [
   {
     id: 'low',
-    label: 'Léger',
-    color: colors.success,
+    label: 'Low',
+    color: '#4CAF50',
     minDepth: 0,
+    dbPriority: 'low',
   },
   {
     id: 'moderate',
-    label: 'Modéré',
-    color: colors.warning,
-    minDepth: 3,
+    label: 'Moderate',
+    color: '#FF9800',
+    minDepth: 2,
+    dbPriority: 'medium',
   },
   {
     id: 'high',
-    label: 'Élevé',
-    color: '#f97316', // orange-500
-    minDepth: 6,
+    label: 'High',
+    color: '#FF5722',
+    minDepth: 5,
+    dbPriority: 'high',
   },
   {
     id: 'critical',
-    label: 'Critique',
-    color: colors.danger,
+    label: 'Critical',
+    color: '#F44336',
     minDepth: 10,
+    dbPriority: 'critical',
   },
 ];
 
-export const USER_WEIGHTS = {
-  citizen: 1,
-  approved: 5,
-  admin: 10,
+// Helper functions to convert between app types and database types
+export const getDbDefectType = (appType: DefectType): DbDefectType => {
+  const typeInfo = DEFECT_TYPES.find(t => t.id === appType);
+  return typeInfo?.dbType || 'other';
 };
 
-export const VALIDATION_THRESHOLD = 3; // Number of validations needed for citizen reports
+export const getAppDefectType = (dbType: DbDefectType): DefectType => {
+  const typeInfo = DEFECT_TYPES.find(t => t.dbType === dbType);
+  return typeInfo?.id || 'other';
+};
+
+export const getDbPriority = (severity: DefectSeverity): DbDefectPriority => {
+  const severityInfo = SEVERITY_LEVELS.find(s => s.id === severity);
+  return severityInfo?.dbPriority || 'low';
+};
+
+export const getAppSeverity = (dbPriority: DbDefectPriority): DefectSeverity => {
+  const severityInfo = SEVERITY_LEVELS.find(s => s.dbPriority === dbPriority);
+  return severityInfo?.id || 'low';
+};
+
+export const STATUS_LABELS = {
+  reported: 'Reported',
+  validated: 'Validated',
+  in_progress: 'In Progress',
+  repaired: 'Resolved',
+  rejected: 'Rejected',
+};
+
+export const PRIORITY_COLORS = {
+  low: '#4CAF50',
+  medium: '#FF9800',
+  high: '#FF5722',
+  critical: '#F44336',
+};

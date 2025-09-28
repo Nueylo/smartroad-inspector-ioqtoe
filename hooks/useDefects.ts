@@ -1,92 +1,43 @@
 
-import { useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DefectReport } from '../types';
-import { mockDefects } from '../data/mockData';
+import { useSupabaseDefects } from './useSupabaseDefects';
+import { mockDefects } from '@/data/mockData';
+import { DefectReport } from '@/types';
 
-const STORAGE_KEY = 'smartroad_defects';
+// This hook provides a fallback to mock data when Supabase is not available
+export function useDefects() {
+  const supabaseHook = useSupabaseDefects();
+  
+  // If Supabase is loading or has errors, fall back to mock data
+  if (supabaseHook.loading && supabaseHook.defects.length === 0) {
+    return {
+      defects: mockDefects,
+      loading: false,
+      error: null,
+      addDefect: supabaseHook.addDefect,
+      validateDefect: supabaseHook.validateDefect,
+      updateDefectStatus: supabaseHook.updateDefectStatus,
+      getDefectById: (id: string) => mockDefects.find(d => d.id === id),
+      getFilteredDefects: (filters: any) => mockDefects,
+      refetch: supabaseHook.refetch,
+    };
+  }
 
-export const useDefects = () => {
-  const [defects, setDefects] = useState<DefectReport[]>([]);
-  const [loading, setLoading] = useState(true);
+  // If we have Supabase data or no error, use Supabase
+  if (supabaseHook.defects.length > 0 || !supabaseHook.error) {
+    return supabaseHook;
+  }
 
-  useEffect(() => {
-    loadDefects();
-  }, []);
-
-  const loadDefects = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsedDefects = JSON.parse(stored).map((defect: any) => ({
-          ...defect,
-          reportedAt: new Date(defect.reportedAt),
-        }));
-        setDefects(parsedDefects);
-      } else {
-        // Initialize with mock data
-        setDefects(mockDefects);
-        await saveDefects(mockDefects);
-      }
-    } catch (error) {
-      console.log('Error loading defects:', error);
-      setDefects(mockDefects);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveDefects = async (defectsToSave: DefectReport[]) => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(defectsToSave));
-    } catch (error) {
-      console.log('Error saving defects:', error);
-    }
-  };
-
-  const addDefect = async (defect: DefectReport) => {
-    const updatedDefects = [...defects, defect];
-    setDefects(updatedDefects);
-    await saveDefects(updatedDefects);
-  };
-
-  const updateDefect = async (id: string, updates: Partial<DefectReport>) => {
-    const updatedDefects = defects.map(defect =>
-      defect.id === id ? { ...defect, ...updates } : defect
-    );
-    setDefects(updatedDefects);
-    await saveDefects(updatedDefects);
-  };
-
-  const validateDefect = async (defectId: string, userId: string) => {
-    const defect = defects.find(d => d.id === defectId);
-    if (!defect || defect.validations.includes(userId)) {
-      return;
-    }
-
-    const updatedValidations = [...defect.validations, userId];
-    await updateDefect(defectId, {
-      validations: updatedValidations,
-      status: updatedValidations.length >= 3 ? 'validated' : defect.status,
-    });
-  };
-
-  const getDefectsByStatus = (status: DefectReport['status']) => {
-    return defects.filter(defect => defect.status === status);
-  };
-
-  const getDefectsBySeverity = (severity: DefectReport['severity']) => {
-    return defects.filter(defect => defect.severity === severity);
-  };
-
+  // Fallback to mock data if there's an error
+  console.log('Falling back to mock data due to Supabase error:', supabaseHook.error);
   return {
-    defects,
-    loading,
-    addDefect,
-    updateDefect,
-    validateDefect,
-    getDefectsByStatus,
-    getDefectsBySeverity,
-    refresh: loadDefects,
+    defects: mockDefects,
+    loading: false,
+    error: supabaseHook.error,
+    addDefect: supabaseHook.addDefect,
+    validateDefect: supabaseHook.validateDefect,
+    updateDefectStatus: supabaseHook.updateDefectStatus,
+    getDefectById: (id: string) => mockDefects.find(d => d.id === id),
+    getFilteredDefects: (filters: any) => mockDefects,
+    refetch: supabaseHook.refetch,
   };
-};
+}

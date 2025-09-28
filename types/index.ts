@@ -35,23 +35,30 @@ export interface DefectReport {
   priority: number; // calculated based on user weight and validations
 }
 
+// Map existing database types to our app types
 export type DefectType = 
-  | 'pothole' 
+  | 'pothole'  // maps to 'hole'
   | 'crack' 
-  | 'surface_damage' 
-  | 'edge_damage' 
-  | 'drainage_issue' 
+  | 'surface_damage'  // maps to 'erosion'
+  | 'edge_damage'     // maps to 'other'
+  | 'drainage_issue'  // maps to 'other'
   | 'other';
 
 export type DefectSeverity = 'low' | 'moderate' | 'high' | 'critical';
 
 export type DefectStatus = 'reported' | 'validated' | 'in_progress' | 'resolved' | 'rejected';
 
+// Database types (what's actually in the database)
+export type DbDefectType = 'hole' | 'crack' | 'erosion' | 'other';
+export type DbDefectStatus = 'reported' | 'validated' | 'in_progress' | 'repaired';
+export type DbDefectPriority = 'low' | 'medium' | 'high' | 'critical';
+
 export interface DefectTypeInfo {
   id: DefectType;
   label: string;
   icon: string;
   color: string;
+  dbType: DbDefectType; // mapping to database enum
 }
 
 export interface SeverityInfo {
@@ -59,4 +66,5 @@ export interface SeverityInfo {
   label: string;
   color: string;
   minDepth: number; // minimum depth in cm for this severity
+  dbPriority: DbDefectPriority; // mapping to database enum
 }

@@ -1,23 +1,127 @@
 
-import React, { useState } from 'react';
+import { useLocation } from '@/hooks/useLocation';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Pressable } from 'react-native';
-import { Stack, router } from 'expo-router';
-import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
+import * as ImagePicker from 'expo-image-picker';
+import { SEVERITY_LEVELS } from '@/data/constants';
+import { IconSymbol } from '@/components/IconSymbol';
+import { Stack, router } from 'expo-router';
+import { useSupabaseDefects } from '@/hooks/useSupabaseDefects';
+import { useAuth } from '@/hooks/useAuth';
+import { DefectType, DefectDimensions, DefectSeverity } from '@/types';
+import React, { useState } from 'react';
 import { DefectTypeSelector } from '@/components/DefectTypeSelector';
 import { DimensionInput } from '@/components/DimensionInput';
-import { useDefects } from '@/hooks/useDefects';
-import { useLocation } from '@/hooks/useLocation';
-import { DefectType, DefectDimensions, DefectSeverity, DefectReport } from '@/types';
-import { SEVERITY_LEVELS } from '@/data/constants';
-import { currentUser } from '@/data/mockData';
-import * as ImagePicker from 'expo-image-picker';
+import { Button } from '@/components/button';
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    padding: 20,
+    gap: 25,
+  },
+  section: {
+    gap: 15,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 5,
+  },
+  locationCard: {
+    backgroundColor: colors.surface,
+    padding: 15,
+    borderRadius: 12,
+    ...commonStyles.shadow,
+  },
+  locationText: {
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: 10,
+  },
+  locationButton: {
+    ...buttonStyles.outline,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  locationButtonText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  photoSection: {
+    gap: 15,
+  },
+  photoButton: {
+    backgroundColor: colors.surface,
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+  },
+  photoButtonText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  photoPreview: {
+    backgroundColor: colors.surface,
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 10,
+  },
+  descriptionInput: {
+    ...commonStyles.input,
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  severityCard: {
+    backgroundColor: colors.surface,
+    padding: 15,
+    borderRadius: 12,
+    ...commonStyles.shadow,
+  },
+  severityText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  submitButton: {
+    marginTop: 20,
+  },
+  authPrompt: {
+    backgroundColor: colors.warning + '20',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  authPromptText: {
+    fontSize: 14,
+    color: colors.text,
+    textAlign: 'center',
+  },
+});
 
 export default function ReportDefectScreen() {
-  const { addDefect } = useDefects();
-  const { location, loading: locationLoading, getCurrentLocation } = useLocation();
+  const { location, getLocation, loading: locationLoading } = useLocation();
+  const { addDefect, loading: submitLoading } = useSupabaseDefects();
+  const { isAuthenticated, user } = useAuth();
   
-  const [selectedType, setSelectedType] = useState<DefectType | null>(null);
+  const [defectType, setDefectType] = useState<DefectType>('pothole');
   const [dimensions, setDimensions] = useState<DefectDimensions>({
     length: 0,
     width: 0,
@@ -26,12 +130,11 @@ export default function ReportDefectScreen() {
   });
   const [description, setDescription] = useState('');
   const [imageUri, setImageUri] = useState<string | undefined>();
-  const [submitting, setSubmitting] = useState(false);
 
   const calculateSeverity = (depth: number): DefectSeverity => {
     if (depth >= 10) return 'critical';
-    if (depth >= 6) return 'high';
-    if (depth >= 3) return 'moderate';
+    if (depth >= 5) return 'high';
+    if (depth >= 2) return 'moderate';
     return 'low';
   };
 
@@ -39,7 +142,7 @@ export default function ReportDefectScreen() {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission requise', 'L\'accès à la caméra est nécessaire pour prendre une photo.');
+        Alert.alert('Permission needed', 'Camera permission is required to take photos');
         return;
       }
 
@@ -54,71 +157,83 @@ export default function ReportDefectScreen() {
         setImageUri(result.assets[0].uri);
       }
     } catch (error) {
-      console.log('Error taking photo:', error);
-      Alert.alert('Erreur', 'Impossible de prendre la photo.');
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
     }
   };
 
   const handleGetLocation = async () => {
-    const currentLocation = await getCurrentLocation();
-    if (!currentLocation) {
-      Alert.alert('Erreur', 'Impossible d\'obtenir la localisation actuelle.');
+    try {
+      await getLocation();
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert('Error', 'Failed to get location');
     }
   };
 
   const handleSubmit = async () => {
-    if (!selectedType) {
-      Alert.alert('Erreur', 'Veuillez sélectionner un type de défaillance.');
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Authentication Required',
+        'Please sign in to report defects',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => router.push('/auth/sign-in') }
+        ]
+      );
       return;
     }
 
     if (!location) {
-      Alert.alert('Erreur', 'Veuillez obtenir votre localisation.');
+      Alert.alert('Location Required', 'Please get your current location first');
       return;
     }
 
-    if (dimensions.length === 0 || dimensions.width === 0 || dimensions.depth === 0) {
-      Alert.alert('Erreur', 'Veuillez renseigner toutes les dimensions.');
+    if (dimensions.length <= 0 || dimensions.width <= 0 || dimensions.depth <= 0) {
+      Alert.alert('Dimensions Required', 'Please enter valid dimensions for the defect');
       return;
     }
 
     if (!description.trim()) {
-      Alert.alert('Erreur', 'Veuillez ajouter une description.');
+      Alert.alert('Description Required', 'Please provide a description of the defect');
       return;
     }
 
-    setSubmitting(true);
-
     try {
       const severity = calculateSeverity(dimensions.depth);
+      const surface = dimensions.length * dimensions.width;
       
-      const newDefect: DefectReport = {
-        id: Date.now().toString(),
-        location,
-        dimensions,
-        type: selectedType,
-        severity,
-        description: description.trim(),
-        imageUri,
-        reportedBy: currentUser.id,
-        reportedAt: new Date(),
-        validations: currentUser.type === 'citizen' ? [] : [currentUser.id],
-        status: currentUser.type === 'citizen' ? 'reported' : 'validated',
-        priority: currentUser.weight,
+      const finalDimensions = {
+        ...dimensions,
+        surface,
       };
 
-      await addDefect(newDefect);
-      
-      Alert.alert(
-        'Succès',
-        'Votre signalement a été enregistré avec succès.',
-        [{ text: 'OK', onPress: () => router.back() }]
+      const result = await addDefect(
+        location,
+        finalDimensions,
+        defectType,
+        severity,
+        description.trim(),
+        imageUri
       );
+
+      if (result) {
+        Alert.alert(
+          'Success',
+          'Defect report submitted successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.back()
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to submit defect report');
+      }
     } catch (error) {
-      console.log('Error submitting defect:', error);
-      Alert.alert('Erreur', 'Impossible d\'enregistrer le signalement.');
-    } finally {
-      setSubmitting(false);
+      console.error('Error submitting defect:', error);
+      Alert.alert('Error', 'Failed to submit defect report');
     }
   };
 
@@ -126,201 +241,128 @@ export default function ReportDefectScreen() {
   const severityInfo = SEVERITY_LEVELS.find(s => s.id === severity);
 
   return (
-    <View style={commonStyles.wrapper}>
-      <Stack.Screen
-        options={{
-          title: 'Signaler un défaut',
-          headerStyle: { backgroundColor: colors.primary },
-          headerTintColor: colors.surface,
-          headerTitleStyle: { fontWeight: '600' },
-        }}
+    <View style={styles.container}>
+      <Stack.Screen 
+        options={{ 
+          title: 'Report Defect',
+          headerShown: true,
+        }} 
       />
       
-      <ScrollView style={commonStyles.container} showsVerticalScrollIndicator={false}>
-        <View style={commonStyles.content}>
-          {/* Location Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Localisation</Text>
-            <View style={styles.locationContainer}>
-              {location ? (
-                <View style={styles.locationInfo}>
-                  <IconSymbol name="location" size={16} color={colors.success} />
-                  <Text style={styles.locationText}>
-                    {location.address || `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`}
-                  </Text>
-                </View>
-              ) : (
-                <Text style={commonStyles.textSecondary}>
-                  Aucune localisation obtenue
-                </Text>
-              )}
-              
-              <Pressable
-                style={[buttonStyles.secondary, styles.locationButton]}
-                onPress={handleGetLocation}
-                disabled={locationLoading}
-              >
-                <IconSymbol 
-                  name={locationLoading ? "arrow.clockwise" : "location"} 
-                  size={16} 
-                  color={colors.primary} 
-                />
-                <Text style={styles.locationButtonText}>
-                  {locationLoading ? 'Localisation...' : 'Obtenir ma position'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Photo Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Photo (optionnel)</Text>
-            <Pressable
-              style={[buttonStyles.secondary, styles.photoButton]}
-              onPress={handleTakePhoto}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {!isAuthenticated && (
+          <View style={styles.authPrompt}>
+            <IconSymbol name="exclamationmark.triangle" size={24} color={colors.warning} />
+            <Text style={styles.authPromptText}>
+              You need to sign in to report defects. Your reports help improve road safety!
+            </Text>
+            <Button 
+              variant="outline" 
+              size="small"
+              onPress={() => router.push('/auth/sign-in')}
             >
-              <IconSymbol name="camera" size={20} color={colors.primary} />
-              <Text style={styles.photoButtonText}>
-                {imageUri ? 'Photo prise ✓' : 'Prendre une photo'}
+              Sign In
+            </Button>
+          </View>
+        )}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Location</Text>
+          <View style={styles.locationCard}>
+            {location ? (
+              <Text style={styles.locationText}>
+                📍 {location.address || `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`}
+              </Text>
+            ) : (
+              <Text style={styles.locationText}>
+                Location not set
+              </Text>
+            )}
+            <Pressable 
+              style={styles.locationButton} 
+              onPress={handleGetLocation}
+              disabled={locationLoading}
+            >
+              <IconSymbol 
+                name={locationLoading ? "arrow.clockwise" : "location.fill"} 
+                size={16} 
+                color={colors.primary} 
+              />
+              <Text style={styles.locationButtonText}>
+                {locationLoading ? 'Getting Location...' : 'Get Current Location'}
               </Text>
             </Pressable>
           </View>
+        </View>
 
-          {/* Defect Type */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Defect Type</Text>
           <DefectTypeSelector
-            selectedType={selectedType}
-            onSelect={setSelectedType}
+            selectedType={defectType}
+            onTypeSelect={setDefectType}
           />
+        </View>
 
-          {/* Dimensions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Dimensions (cm)</Text>
           <DimensionInput
             dimensions={dimensions}
             onUpdate={setDimensions}
           />
-
-          {/* Severity Display */}
-          {dimensions.depth > 0 && (
-            <View style={styles.severityContainer}>
-              <Text style={styles.sectionTitle}>Gravité calculée</Text>
-              <View style={[styles.severityBadge, { backgroundColor: severityInfo?.color }]}>
-                <Text style={styles.severityText}>{severityInfo?.label}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* Description */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Description</Text>
-            <TextInput
-              style={[commonStyles.input, styles.descriptionInput]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Décrivez le défaut observé..."
-              placeholderTextColor={colors.textSecondary}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-          </View>
-
-          {/* Submit Button */}
-          <Pressable
-            style={[
-              buttonStyles.primary,
-              styles.submitButton,
-              (!selectedType || !location || submitting) && styles.disabledButton
-            ]}
-            onPress={handleSubmit}
-            disabled={!selectedType || !location || submitting}
-          >
-            <Text style={styles.submitButtonText}>
-              {submitting ? 'Enregistrement...' : 'Enregistrer le signalement'}
-            </Text>
-          </Pressable>
         </View>
+
+        {dimensions.depth > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Calculated Severity</Text>
+            <View style={[styles.severityCard, { borderLeftWidth: 4, borderLeftColor: severityInfo?.color }]}>
+              <Text style={[styles.severityText, { color: severityInfo?.color }]}>
+                {severityInfo?.label} ({dimensions.depth}cm depth)
+              </Text>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Photo (Optional)</Text>
+          {imageUri ? (
+            <View style={styles.photoPreview}>
+              <IconSymbol name="photo.fill" size={32} color={colors.success} />
+              <Text style={styles.photoButtonText}>Photo captured</Text>
+              <Button variant="outline" size="small" onPress={handleTakePhoto}>
+                Retake Photo
+              </Button>
+            </View>
+          ) : (
+            <Pressable style={styles.photoButton} onPress={handleTakePhoto}>
+              <IconSymbol name="camera.fill" size={32} color={colors.textSecondary} />
+              <Text style={styles.photoButtonText}>
+                Tap to take a photo of the defect
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Description</Text>
+          <TextInput
+            style={styles.descriptionInput}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe the defect, its location, and any safety concerns..."
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
+
+        <Button
+          onPress={handleSubmit}
+          loading={submitLoading}
+          disabled={!isAuthenticated}
+          style={styles.submitButton}
+        >
+          Submit Report
+        </Button>
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 12,
-  },
-  locationContainer: {
-    gap: 12,
-  },
-  locationInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: colors.success + '10',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.success + '30',
-  },
-  locationText: {
-    fontSize: 14,
-    color: colors.text,
-    marginLeft: 8,
-    flex: 1,
-  },
-  locationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  locationButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  photoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  photoButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  severityContainer: {
-    marginBottom: 24,
-  },
-  severityBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-  },
-  severityText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.surface,
-  },
-  descriptionInput: {
-    height: 100,
-    paddingTop: 16,
-  },
-  submitButton: {
-    marginTop: 20,
-    marginBottom: 40,
-  },
-  submitButtonText: {
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-});
