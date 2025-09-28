@@ -12,6 +12,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     flex: 1,
     padding: 20,
@@ -93,7 +96,11 @@ export default function SignInScreen() {
         }} 
       />
       
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <IconSymbol name="road.lanes" size={60} color={colors.primary} />
           <Text style={styles.title}>Welcome Back</Text>
