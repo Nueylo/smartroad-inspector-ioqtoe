@@ -1,181 +1,229 @@
-import React from "react";
-import { Stack, router } from "expo-router";
-import { FlatList, Pressable, StyleSheet, View, Text } from "react-native";
-// Components
-import { IconCircle } from "@/components/IconCircle";
-import { IconSymbol } from "@/components/IconSymbol";
-import { BodyScrollView } from "@/components/BodyScrollView";
-import { Button } from "@/components/button";
-// Constants & Hooks
-import { backgroundColors } from "@/constants/Colors";
 
-const ICON_COLOR = "#007AFF";
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { Stack, router } from 'expo-router';
+import { IconSymbol } from '@/components/IconSymbol';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import { useDefects } from '@/hooks/useDefects';
+import { DefectCard } from '@/components/DefectCard';
+import { currentUser } from '@/data/mockData';
 
 export default function HomeScreen() {
+  const { defects, loading } = useDefects();
 
-  const modalDemos = [
-    {
-      title: "Standard Modal",
-      description: "Full screen modal presentation",
-      route: "/modal",
-      color: "#007AFF",
-    },
-    {
-      title: "Form Sheet",
-      description: "Bottom sheet with detents and grabber",
-      route: "/formsheet",
-      color: "#34C759",
-    },
-    {
-      title: "Transparent Modal",
-      description: "Overlay without obscuring background",
-      route: "/transparent-modal",
-      color: "#FF9500",
-    }
-  ];
+  const recentDefects = defects
+    .sort((a, b) => b.reportedAt.getTime() - a.reportedAt.getTime())
+    .slice(0, 3);
 
-  const renderModalDemo = ({ item }: { item: typeof modalDemos[0] }) => (
-    <View style={styles.demoCard}>
-      <View style={[styles.demoIcon, { backgroundColor: item.color }]}>
-        <IconSymbol name="square.grid.3x3" color="white" size={24} />
-      </View>
-      <View style={styles.demoContent}>
-        <Text style={styles.demoTitle}>{item.title}</Text>
-        <Text style={styles.demoDescription}>{item.description}</Text>
-      </View>
-      <Button
-        variant="outline"
-        size="sm"
-        onPress={() => router.push(item.route as any)}
-      >
-        Try It
-      </Button>
-    </View>
-  );
+  const criticalDefects = defects.filter(d => d.severity === 'critical').length;
+  const validatedDefects = defects.filter(d => d.status === 'validated').length;
+  const totalDefects = defects.length;
 
-  const renderEmptyList = () => (
-    <BodyScrollView contentContainerStyle={styles.emptyStateContainer}>
-      <IconCircle
-        emoji=""
-        backgroundColor={
-          backgroundColors[Math.floor(Math.random() * backgroundColors.length)]
-        }
-      />
-    </BodyScrollView>
-  );
+  const navigateToReport = () => {
+    router.push('/report-defect');
+  };
 
-  const renderHeaderRight = () => (
-    <Pressable
-      onPress={() => {console.log("plus")}}
-      style={styles.headerButtonContainer}
-    >
-      <IconSymbol name="plus" color={ICON_COLOR} />
-    </Pressable>
-  );
+  const navigateToMap = () => {
+    router.push('/map');
+  };
 
-  const renderHeaderLeft = () => (
-    <Pressable
-      onPress={() => {console.log("gear")}}
-      style={styles.headerButtonContainer}
-    >
-      <IconSymbol
-        name="gear"
-        color={ICON_COLOR}
-      />
-    </Pressable>
-  );
+  const navigateToList = () => {
+    router.push('/defect-list');
+  };
+
+  const navigateToDefectDetail = (defectId: string) => {
+    router.push(`/defect-detail?id=${defectId}`);
+  };
 
   return (
-    <>
+    <View style={commonStyles.wrapper}>
       <Stack.Screen
         options={{
-          title: "Building the app...",
-          headerRight: renderHeaderRight,
-          headerLeft: renderHeaderLeft,
+          title: 'SmartRoad Inspector',
+          headerStyle: { backgroundColor: colors.primary },
+          headerTintColor: colors.surface,
+          headerTitleStyle: { fontWeight: '700' },
         }}
       />
-      <View style={styles.container}>
-        <FlatList
-          data={modalDemos}
-          renderItem={renderModalDemo}
-          keyExtractor={(item) => item.route}
-          contentContainerStyle={styles.listContainer}
-          contentInsetAdjustmentBehavior="automatic"
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
-    </>
+      
+      <ScrollView style={commonStyles.container} showsVerticalScrollIndicator={false}>
+        <View style={commonStyles.content}>
+          {/* Welcome Section */}
+          <View style={styles.welcomeSection}>
+            <Text style={commonStyles.title}>Bonjour, {currentUser.name}</Text>
+            <Text style={commonStyles.textSecondary}>
+              Inspectez et signalez les défaillances routières
+            </Text>
+          </View>
+
+          {/* Stats Cards */}
+          <View style={styles.statsContainer}>
+            <View style={[styles.statCard, { backgroundColor: colors.danger + '20' }]}>
+              <Text style={styles.statNumber}>{criticalDefects}</Text>
+              <Text style={styles.statLabel}>Critiques</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: colors.success + '20' }]}>
+              <Text style={styles.statNumber}>{validatedDefects}</Text>
+              <Text style={styles.statLabel}>Validés</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: colors.primary + '20' }]}>
+              <Text style={styles.statNumber}>{totalDefects}</Text>
+              <Text style={styles.statLabel}>Total</Text>
+            </View>
+          </View>
+
+          {/* Quick Actions */}
+          <View style={styles.actionsContainer}>
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: colors.primary }]}
+              onPress={navigateToReport}
+              android_ripple={{ color: colors.surface + '20' }}
+            >
+              <IconSymbol name="camera" size={24} color={colors.surface} />
+              <Text style={styles.actionButtonText}>Signaler un défaut</Text>
+            </Pressable>
+
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.secondaryActionButton, { backgroundColor: colors.surface }]}
+                onPress={navigateToMap}
+                android_ripple={{ color: colors.border }}
+              >
+                <IconSymbol name="map" size={20} color={colors.primary} />
+                <Text style={styles.secondaryActionText}>Carte</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.secondaryActionButton, { backgroundColor: colors.surface }]}
+                onPress={navigateToList}
+                android_ripple={{ color: colors.border }}
+              >
+                <IconSymbol name="list.bullet" size={20} color={colors.primary} />
+                <Text style={styles.secondaryActionText}>Liste</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Recent Defects */}
+          <View style={styles.recentSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={commonStyles.subtitle}>Signalements récents</Text>
+              <Pressable onPress={navigateToList}>
+                <Text style={styles.seeAllText}>Voir tout</Text>
+              </Pressable>
+            </View>
+
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={commonStyles.textSecondary}>Chargement...</Text>
+              </View>
+            ) : recentDefects.length > 0 ? (
+              recentDefects.map((defect) => (
+                <DefectCard
+                  key={defect.id}
+                  defect={defect}
+                  onPress={() => navigateToDefectDetail(defect.id)}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={commonStyles.textSecondary}>
+                  Aucun signalement récent
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
+  welcomeSection: {
+    marginBottom: 24,
   },
-  headerSection: {
-    padding: 20,
-    paddingBottom: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 22,
-  },
-  listContainer: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-  },
-  demoCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+  statsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    gap: 12,
+    marginBottom: 24,
   },
-  demoIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  demoContent: {
+  statCard: {
     flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
   },
-  demoTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+  statNumber: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
     marginBottom: 4,
   },
-  demoDescription: {
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  actionsContainer: {
+    marginBottom: 32,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  actionButtonText: {
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  secondaryActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  secondaryActionText: {
+    color: colors.primary,
     fontSize: 14,
-    color: '#666',
-    lineHeight: 18,
+    fontWeight: '600',
+    marginLeft: 8,
   },
-  emptyStateContainer: {
-    alignItems: "center",
-    gap: 8,
-    paddingTop: 100,
+  recentSection: {
+    marginBottom: 24,
   },
-  headerButtonContainer: {
-    padding: 6, // Just enough padding around the 24px icon
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  seeAllText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
   },
 });
